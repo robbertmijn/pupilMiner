@@ -1,0 +1,21 @@
+Package: pupilMiner
+Title: Parse, Process and Analyze Pupil Data in R
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Robbert",
+           family = "van der Mijn",
+           role = c("aut", "cre"),
+           email = "robbertmijn@gmail.com",
+           comment = c(ORCID = "0000-0002-5312-2613"))
+Description: This package is meant to use for analysis of pupil data. Currently, it can only be used to load data using the eyelinker package with data collected from the Eyelink system by SR-Research.
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Depends:
+  eyelinker,
+	data.table,
+	zoo,
+	ggplot2
