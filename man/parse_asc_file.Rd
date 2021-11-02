@@ -2,9 +2,9 @@
 % Please edit documentation in R/load_functions.R
 \name{parse_asc_file}
 \alias{parse_asc_file}
-\title{Load a Matrix}
+\title{This functions load an ASC file}
 \usage{
-parse_asc_file(infile)
+parse_asc_file(infile, keep_vars)
 }
 \arguments{
 \item{infile}{Path to the input file}
