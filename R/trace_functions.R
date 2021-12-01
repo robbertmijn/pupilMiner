@@ -5,65 +5,126 @@
 #' @param win number of samples to smooth over
 #' @return pupil table object with column with smoothed signal
 #' @export
-smooth_trace <- function(dat, by = NULL, win = 10){
-  gr_by <- c(by, "pp", "trial")
-  # Deduce sampling frequency from time stamps
-  recHz <- 1000/diff(dat$time[1:2])
-  # smooth trace with rolling average of 15 ms
-  dat[, pupil_s := rollmean(pupil, round(win/(recHz/1000)), align = "center", na.rm = F, fill = NA), by = gr_by]
-  return(dat)
+smooth_trace <- function(trace, win = 21){
+  if(win %% 2 != 0){
+    # make winlength an uneven
+    win <- win + 1
+  }
+  # pad around the signal half the width of the window, they will fall off when smoothing
+  d <- (win-1)/2
+  s <- c(trace[2:(d+1)], trace, rev(tail(trace, d+1))[-1])
+  return(rollmean(s, win, align = "center", na.rm = T))
 }
 #' detect blinks
 #'
 #' @param dat pupil table object
-#' @param maxDeltaDilation dilation threshold
+#' @param vt A pupil velocity threshold. Lower thresholds more easily trigger blinks.
+#' @param maxdur The maximum duration (in samples) for a blink. Longer blinks are not reconstructed.
+#' @param margin The margin to take around missing data
+#' @param smooth_winlength The width of the smoothing window. This should be an odd integer.
+#' @param std_thr std_thr
 #' @return A data.table with samples
 #' @export
-detect_blinks <- function(dat, maxDeltaDilation = 16){
-  # Mark all samples of which the difference with the next sample exceeds a threshold as NA
-  dat[, pupil_b := ifelse(abs(shift(pupil_s, -1) - pupil) > maxDeltaDilation, NA,
-                          pupil_s), by = .(pp, trial)]
-  return(dat)
-}
-#' Expand Blinks
-#'
-#' @param dat pupil table object
-#' @param rejectionWindow ms padding
-#' @return A data.table with samples
-#' @export
-expand_blinks<-function (dat, rejectionWindow = 50){
-  # Deduce sampling frequency from time stamps
-  recHz <- 1000/diff(dat$time[1:2])
-  rejRegion <- rejectionWindow/1000 * recHz
-  .expandblinks <- function(pupil_b) {
-    rej <- which(is.na(pupil_b))
-    rej <- outer(rej, -rejRegion:rejRegion, FUN = "+")
-    rej <- rej[rej > 0 & rej <= length(pupil_b)]
-    pupil_b[rej] <- NA
-    return(pupil_b)
-  }
-  dat[, pupil_e := .expandblinks(pupil_b), by = .(trial, pp)]
-  return(dat)
-}
-#' interpolate blinks
-#'
-#' @param dat pupil table object
-#' @param type type of interpolation
-#' @return A data.table with samples
-#' @export
-interpolateblinks <- function (dat, type = "linear", maxgap = 500) {
-  recHz <- 1000/diff(dat$time[1:2])
-  if (type != "linear") {
-    stop("The only interpolation currently supported is linear interpolation")
-  }
-  .pupil.na.approx <- function(pupil_e) {
-    if (all(is.na(pupil_e))) {
-      return(pupil_e)
+blinkreconstruct <- function(trace, vt = 15, maxdur = 500, margin = 10, smooth_winlength = 21, std_thr = 3){
+  strace <- smooth_trace(trace, win = smooth_winlength)
+  vtrace <- tail(strace, length(strace)-1) - head(strace, length(strace)-1)
+  
+  ifrom <- 0
+  lblink <- NULL
+  
+  while(1){
+    # The onset of the blink is the moment at which the pupil velocity
+    # exceeds the threshold.
+    l <- which(vtrace[ifrom:length(vtrace)] < -vt)[1]
+    if(is.na(l)){
+      break # No blink detected
     }
-    return(na.approx(pupil_e, na.rm = FALSE, maxgap = 500/1000*recHz))
+    istart = l[1] + ifrom
+    if(ifrom == istart){
+      break
+    }
+    # The reversal period is the moment at which the pupil starts to dilate
+    # again with a velocity above threshold.
+    l = which(vtrace[istart:length(vtrace)] > vt)[1]
+    if(is.na(l)){
+      ifrom = istart
+      next
+    }
+    imid = l[1] + istart
+    # The end blink period is the moment at which the pupil velocity drops
+    # back to zero again.
+    l = which(vtrace[imid:length(vtrace)] < 0)[1]
+    if(is.na(l)){
+      ifrom = imid
+      next
+    }
+    iend = l[1] + imid
+    ifrom = iend
+    # We generally underestimate the blink period, so compensate for this
+    if(istart - margin >= 0){
+      istart <- istart - margin
+    }
+    if(iend + margin < length(trace)){
+      iend <- iend + margin
+    }
+    # We don't accept blinks that are too long, because blinks are not
+    # generally very long (although they can be).
+    if(iend - istart > maxdur){
+      ifrom = istart + round(maxdur/10)
+      next
+    }
+    lblink <- rbind(lblink, c(istart, iend))
   }
-  dat[, pupil_i := .pupil.na.approx(pupil_e), by = .(trial, pp)]
-  return(dat)
+  
+  # Now reconstruct the trace during the blinks
+  if(!is.null(lblink)){
+    for(i in 1:nrow(lblink)){
+      istart <- lblink[i, 1]
+      iend <- lblink[i, 2]
+      # First create a list of (when possible) four data points that we can
+      # use for interpolation.
+      dur <- iend - istart
+      l = NULL
+      
+      l <- c(l, istart, iend)
+      if(istart - dur >= 0 & 
+         iend + dur < length(strace) & 
+         !is.na(trace[iend + dur])){
+        if(!is.na(trace[istart - dur])){
+          l <- c(istart - dur, l)
+          l <- c(l, iend + dur)
+        }
+      }
+      x = l
+      # If the list is long enough we use cubic interpolation, otherwise we
+      # use linear interpolation
+      y = trace[x]
+      # cat(x, "on", y, "\n")
+      xInt = istart:iend
+      if(!any(is.na(y))){
+        if(length(x) >= 4){
+          yInt = interp1(x, y, xInt, method = "cubic")
+        } else{
+          yInt = interp1(x, y, xInt)
+        }
+        trace[xInt] <- yInt
+      }
+    }
+  }
+  # # For all remaining gaps, replace them with the previous sample if
+  # # available
+  # b = which(
+  #   trace < (mean(trace, na.rm = T) - std_thr * sd(trace, na.rm = T))
+  #   | trace > (mean(trace, na.rm = T) + std_thr * sd(trace, na.rm = T))
+  #   | is.na(trace)
+  # )
+  # for(i in b){
+  #   if (i == 0){
+  #     next
+  #   }
+  #   trace[i] = trace[i - 1]
+  # }
+  return(trace)
 }
 #' Timelock trace
 #'
@@ -110,7 +171,7 @@ downsample <- function (dat, by, Hz = 100){
   dat$DS <- dat$time%/%binSize
   allF <- c(by, "DS")
   dat <- dat[, list(pupil = median(pupil), x = median(x), y = median(y),
-                      phase = head(phase, 1)), by = allF]
+                    phase = head(phase, 1)), by = allF]
   dat$time <- dat$DS * binSize
   dat$DS <- NULL
   return(dat)

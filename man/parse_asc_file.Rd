@@ -4,7 +4,7 @@
 \alias{parse_asc_file}
 \title{This functions load an ASC file}
 \usage{
-parse_asc_file(infile, keep_vars)
+parse_asc_file(infile, keep_vars = NULL, blinkreconstruct = T)
 }
 \arguments{
 \item{infile}{Path to the input file}

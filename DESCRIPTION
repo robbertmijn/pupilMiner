@@ -1,6 +1,6 @@
 Package: pupilMiner
 Title: Parse, Process and Analyze Pupil Data in R
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person(given = "Robbert",
            family = "van der Mijn",
@@ -18,4 +18,6 @@ Depends:
   eyelinker,
 	data.table,
 	zoo,
-	ggplot2
+	ggplot2,
+	pracma,
+	progress

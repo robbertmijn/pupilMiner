@@ -5,23 +5,22 @@
 #' @param timelock_to string value of phase on which to timelock to
 #' @return A data.table with samples
 #' @export
-preprocess <- function(file, accept = T, timelock_to = NULL, keep_vars = NULL){
-  
+preprocess <- function(file, keep_raw = T, timelock_to = NULL, keep_vars = NULL, vt = 15){
   dat <- parse_asc_file(file, keep_vars)
-  dat <- smooth_trace(dat, win = 10)
-  dat <- detect_blinks(dat, maxDeltaDilation = 70)
-  dat <- expand_blinks(dat, rejectionWindow = 50)
-  dat <- interpolateblinks(dat)
-  if(accept){
-    dat[, ":="(pupil = pupil_i,
-               pupil_s = NULL,
-               pupil_b = NULL,
-               pupil_e = NULL,
-               pupil_i = NULL)]
-  }
+  # pb <- progress_bar$new(total = length(unique(dat$trial)))
+  # dat[, pupil_r := pupil]
+  # for(tr in unique(dat$trial)){
+  #   # cat(tr, "... ")
+  #   pb$tick()
+  #   try(
+  #     dat <- dat[trial == tr, pupil := blinkreconstruct(pupil, vt = vt)]  
+  #   )
+  # }
+  # if(!keep_raw){
+  #   dat[, pupil_r := NULL]
+  # }
   if(!is.null(timelock_to)){
     dat <- timelock(dat, timelock_to)
-    dat <- baseline(dat)
   }
   return(dat)
 }
@@ -30,13 +29,21 @@ preprocess <- function(file, accept = T, timelock_to = NULL, keep_vars = NULL){
 #' @param infile Path to the input file
 #' @return A data.table with samples
 #' @export
-parse_asc_file <- function(infile, keep_vars){
+parse_asc_file <- function(infile, keep_vars = NULL, blinkreconstruct = T){
   # print message to console
   cat("Loading ", infile, "\n")
   # use eyelinker package to parse asc file
   dat <- read.asc(infile)
   # combine raw data with the messages we sent during the experiment in a table
   tempraw <- data.table(dat$raw)
+  if(blinkreconstruct){
+    tempblinks <- data.table(dat$blinks)
+    for(r in 1:nrow(tempblinks)){
+      stime <- tempblinks[r]$stime - 50
+      etime <- tempblinks[r]$etime + 50
+      tempraw[time %between% c(stime, etime), ps := NA]
+    }
+  }
   tempphases <- data.table(dat$msg, type = "phase")[startsWith(text, "start_phase")]
   tempdat <- rbind(tempraw, tempphases, fill = T)
   # each "start_recording" (at beginning of a trial) is counted in the variable block
@@ -66,4 +73,32 @@ parse_asc_file <- function(infile, keep_vars){
   }
   return(tempdat)
 }
-  
+#' Export a blink report
+#'
+#' @param dat table with pupil data, including raw pupil
+#' @export
+blink_report <- function(dat, folder = "blink_reports", trials_per_page = 20, period = c(-Inf, Inf)){
+  theme_set(theme_classic())
+  dir.create(file.path(getwd(), folder), showWarnings = FALSE)
+  pdf(file = paste0(folder, "/blinks_pp", unique(dat$pp), ".pdf"))
+  dat[, page := trial %/% trials_per_page]
+  pb <- progress_bar$new(total = length(unique(dat$page)))
+  for(p in unique(dat$page)){
+    pb$tick()
+    print(
+      ggplot(dat[page == p & time %between% period], aes(x = time, group = trial)) +
+        geom_line(aes(y = pupil_r), alpha = .4) +
+        geom_line(aes(y = pupil), alpha = .4, color= "red") +
+        facet_wrap(~trial) +
+        labs(title = paste0("pp ", unique(dat$pp), " page ", p, " of ", max(dat$page)))
+    )
+  }
+  dev.off()
+}
+#' load the demo data
+#'
+#' @return A data.table with samples
+#' @export
+DemoDat <- function(){
+  return(parse_asc_file(system.file("extdata", "sub_1.asc", package = "pupilMiner")))
+}

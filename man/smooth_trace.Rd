@@ -4,14 +4,14 @@
 \alias{smooth_trace}
 \title{smooth a trace}
 \usage{
-smooth_trace(dat, by = NULL, win = 10)
+smooth_trace(trace, win = 21)
 }
 \arguments{
+\item{win}{number of samples to smooth over}
+
 \item{dat}{pupil table object}
 
 \item{by}{by}
-
-\item{win}{number of samples to smooth over}
 }
 \value{
 pupil table object with column with smoothed signal

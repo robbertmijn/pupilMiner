@@ -4,14 +4,14 @@
 \alias{preprocess}
 \title{load and preprocess data from an asc file}
 \usage{
-preprocess(file, accept = T, timelock_to = NULL, keep_vars = NULL)
+preprocess(file, keep_raw = T, timelock_to = NULL, keep_vars = NULL, vt = 15)
 }
 \arguments{
-\item{accept}{leave just one pupil trace instead of keeping intermediate traces}
-
 \item{timelock_to}{string value of phase on which to timelock to}
 
 \item{dat}{pupil table object}
+
+\item{accept}{leave just one pupil trace instead of keeping intermediate traces}
 }
 \value{
 A data.table with samples
