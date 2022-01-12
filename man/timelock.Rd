@@ -4,12 +4,12 @@
 \alias{timelock}
 \title{Timelock trace}
 \usage{
-timelock(dat, phase_name)
+timelock(data, phase_name)
 }
 \arguments{
-\item{dat}{pupil table object}
-
 \item{phase_name}{of which the start will be new 0 point}
+
+\item{dat}{pupil table object}
 
 \item{by}{by}
 }

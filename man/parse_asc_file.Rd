@@ -4,10 +4,32 @@
 \alias{parse_asc_file}
 \title{This functions load an ASC file}
 \usage{
-parse_asc_file(infile, keep_vars = NULL, blinkreconstruct = T)
+parse_asc_file(
+  infile,
+  keep_vars = NULL,
+  TP_report_dir = NULL,
+  TP_report_period = c(-Inf, Inf),
+  timelock_to = NULL,
+  samptime = NULL,
+  baseline_period = c(NULL, NULL)
+)
 }
 \arguments{
 \item{infile}{Path to the input file}
+
+\item{keep_vars}{column names to keep from vars that are passed as messages to the eyelink}
+
+\item{TP_report_dir}{if passed, pdfs with trace reports are saved in this folder}
+
+\item{TP_report_period}{select begin and end point to report}
+
+\item{timelock_to}{if passed, time variable is set to 0 at onset of a phase}
+
+\item{samptime}{if passed, data is downsampled to this sample time (ms)}
+
+\item{baseline_period}{pupil trace baseline}
+
+\item{TP}{Specify which type of trace processor}
 }
 \value{
 A data.table with samples

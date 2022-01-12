@@ -1,3 +1,139 @@
+#' trace processor
+#'
+#' @param data eyetracker table object with raw samples
+#' @param blinkdat blink information
+#' @return tracker table with processed traces
+#' @export
+traceprocessor <- function(data, blinkdat = NULL){
+  
+  # copy pupil, x and y traces
+  data$pupil_raw <- data$ps
+  data$x_raw <- data$xp
+  data$y_raw <- data$yp
+  
+  if(is.null(blinkdat)){
+    warning("no blink data supplied")
+  }
+  
+  # Remove samples collected during blink period marked by eyelink
+  data <- TP_eyelink(data, blinkdat)
+  
+  # data$pupil_tp_el <- data$ps
+  # data$x_tp_el <- data$xp
+  # data$y_tp_el <- data$yp
+  
+  # Remove samples collected during blink period marked by velocity threshold
+  data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
+  
+  # data$pupil_tp_vel <- data$ps
+  # data$x_tp_vel <- data$xp
+  # data$y_tp_vel <- data$yp
+  
+  # linearly interpolate missing data up to 500 ms
+  data[, ps := na.approx(ps, maxgap = round(500/4), na.rm = F), by = block]
+
+  return(data)
+}
+#' @param dat pupil table object
+#' @param margin The margin to take around missing data
+#' @return A data.table with samples
+#' @export
+TP_eyelink <- function(data, blinkdat, margin = 100){
+  # Remove data during and around blinks using eyelink data
+  for(r in 1:nrow(blinkdat)){
+    stime <- blinkdat[r]$stime
+    etime <- blinkdat[r]$etime
+    data[time %between% c(stime - margin, etime + margin), ":="(ps = NA, 
+                                                                xp = NA, 
+                                                                yp = NA)]
+  }
+  cat("Detected,", nrow(blinkdat), "blinks from eyelink.\n")
+  return(data)
+}
+#' Blink detection using method described by Mathot
+#' @param data pupil table object
+#' @param vt A pupil velocity threshold. Lower thresholds more easily trigger blinks.
+#' @param maxdur The maximum duration (in samples) for a blink. Longer blinks are not reconstructed.
+#' @param margin The margin to take around missing data
+#' @param smooth_winlength The width of the smoothing window. This should be an odd integer.
+#' @param std_thr std_thr
+TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21){
+  
+  sampdur <- data$time[2] - data$time[1]
+  margin <- round(margin/sampdur)
+  maxdur <- round(maxdur/sampdur)
+  data[, i := 1:.N, by = block]
+  
+  cat("Blinks from velocity, pars: vt =", vt, 
+      ", maxdur (samples) =", maxdur, 
+      ", margin (samples) =", margin, 
+      ", smooth (samples) =", smooth_winlength, "\n")
+  for(bl in unique(data$block)){
+    strace <- data[block == bl, smooth_trace(ps, win = smooth_winlength)]
+    vtrace <- strace - shift(strace)
+    
+    lblink <- NULL
+    ifrom <- 0
+    
+    while(1){
+      # The onset of the blink is the moment at which the pupil velocity
+      # exceeds the threshold.
+      l <- which(vtrace[ifrom:length(vtrace)] < -vt)[1]
+      if(is.na(l)){
+        break # No blink detected
+      }
+      istart = l[1] + ifrom
+      if(ifrom == istart){
+        break
+      }
+      # The reversal period is the moment at which the pupil starts to dilate
+      # again with a velocity above threshold.
+      l = which(vtrace[istart:length(vtrace)] > vt)[1]
+      if(is.na(l)){
+        ifrom = istart
+        next
+      }
+      imid = l[1] + istart
+      # The end blink period is the moment at which the pupil velocity drops
+      # back to zero again.
+      l = which(vtrace[imid:length(vtrace)] < 0)[1]
+      if(is.na(l)){
+        ifrom = imid
+        next
+      }
+      iend = l[1] + imid
+      ifrom = iend
+      # We generally underestimate the blink period, so compensate for this
+      if(istart - margin >= 0){
+        istart <- istart - margin
+      }
+      if(iend + margin < length(trace)){
+        iend <- iend + margin
+      }
+      # We don't accept blinks that are too long, because blinks are not
+      # generally very long (although they can be).
+      if(iend - istart > maxdur){
+        ifrom = istart + maxdur
+        next
+      }
+      lblink <- rbind(lblink, c(istart, iend))
+    }
+    
+    if(!is.null(lblink)){
+      cat("[", bl, nrow(lblink), "] ")
+      for(r in 1:nrow(lblink)){
+        istart <- lblink[r, 1]
+        iend <- lblink[r, 2]
+        data[block == bl & i %between% c(istart, iend), ps := NA]
+        data[block == bl & i %between% c(istart, iend), xp := NA]
+        data[block == bl & i %between% c(istart, iend), yp := NA]
+      }
+    }
+  }
+  data$i <- NULL
+  cat("\n")
+  return(data)
+}
 #' smooth a trace
 #'
 #' @param dat pupil table object
@@ -15,117 +151,6 @@ smooth_trace <- function(trace, win = 21){
   s <- c(trace[2:(d+1)], trace, rev(tail(trace, d+1))[-1])
   return(rollmean(s, win, align = "center", na.rm = T))
 }
-#' detect blinks
-#'
-#' @param dat pupil table object
-#' @param vt A pupil velocity threshold. Lower thresholds more easily trigger blinks.
-#' @param maxdur The maximum duration (in samples) for a blink. Longer blinks are not reconstructed.
-#' @param margin The margin to take around missing data
-#' @param smooth_winlength The width of the smoothing window. This should be an odd integer.
-#' @param std_thr std_thr
-#' @return A data.table with samples
-#' @export
-blinkreconstruct <- function(trace, vt = 15, maxdur = 500, margin = 10, smooth_winlength = 21, std_thr = 3){
-  strace <- smooth_trace(trace, win = smooth_winlength)
-  vtrace <- tail(strace, length(strace)-1) - head(strace, length(strace)-1)
-  
-  ifrom <- 0
-  lblink <- NULL
-  
-  while(1){
-    # The onset of the blink is the moment at which the pupil velocity
-    # exceeds the threshold.
-    l <- which(vtrace[ifrom:length(vtrace)] < -vt)[1]
-    if(is.na(l)){
-      break # No blink detected
-    }
-    istart = l[1] + ifrom
-    if(ifrom == istart){
-      break
-    }
-    # The reversal period is the moment at which the pupil starts to dilate
-    # again with a velocity above threshold.
-    l = which(vtrace[istart:length(vtrace)] > vt)[1]
-    if(is.na(l)){
-      ifrom = istart
-      next
-    }
-    imid = l[1] + istart
-    # The end blink period is the moment at which the pupil velocity drops
-    # back to zero again.
-    l = which(vtrace[imid:length(vtrace)] < 0)[1]
-    if(is.na(l)){
-      ifrom = imid
-      next
-    }
-    iend = l[1] + imid
-    ifrom = iend
-    # We generally underestimate the blink period, so compensate for this
-    if(istart - margin >= 0){
-      istart <- istart - margin
-    }
-    if(iend + margin < length(trace)){
-      iend <- iend + margin
-    }
-    # We don't accept blinks that are too long, because blinks are not
-    # generally very long (although they can be).
-    if(iend - istart > maxdur){
-      ifrom = istart + round(maxdur/10)
-      next
-    }
-    lblink <- rbind(lblink, c(istart, iend))
-  }
-  
-  # Now reconstruct the trace during the blinks
-  if(!is.null(lblink)){
-    for(i in 1:nrow(lblink)){
-      istart <- lblink[i, 1]
-      iend <- lblink[i, 2]
-      # First create a list of (when possible) four data points that we can
-      # use for interpolation.
-      dur <- iend - istart
-      l = NULL
-      
-      l <- c(l, istart, iend)
-      if(istart - dur >= 0 & 
-         iend + dur < length(strace) & 
-         !is.na(trace[iend + dur])){
-        if(!is.na(trace[istart - dur])){
-          l <- c(istart - dur, l)
-          l <- c(l, iend + dur)
-        }
-      }
-      x = l
-      # If the list is long enough we use cubic interpolation, otherwise we
-      # use linear interpolation
-      y = trace[x]
-      # cat(x, "on", y, "\n")
-      xInt = istart:iend
-      if(!any(is.na(y))){
-        if(length(x) >= 4){
-          yInt = interp1(x, y, xInt, method = "cubic")
-        } else{
-          yInt = interp1(x, y, xInt)
-        }
-        trace[xInt] <- yInt
-      }
-    }
-  }
-  # # For all remaining gaps, replace them with the previous sample if
-  # # available
-  # b = which(
-  #   trace < (mean(trace, na.rm = T) - std_thr * sd(trace, na.rm = T))
-  #   | trace > (mean(trace, na.rm = T) + std_thr * sd(trace, na.rm = T))
-  #   | is.na(trace)
-  # )
-  # for(i in b){
-  #   if (i == 0){
-  #     next
-  #   }
-  #   trace[i] = trace[i - 1]
-  # }
-  return(trace)
-}
 #' Timelock trace
 #'
 #' @param dat pupil table object
@@ -133,12 +158,12 @@ blinkreconstruct <- function(trace, vt = 15, maxdur = 500, margin = 10, smooth_w
 #' @param by by
 #' @return A data.table with samples
 #' @export
-timelock <- function(dat, phase_name){
-  dat <- merge(dat, dat[phase == phase_name, .(onsetTime = min(time)), by = .(pp, trial)], by = c("pp", "trial"))
+timelock <- function(data, phase_name){
+  data <- merge(data, data[phase == phase_name, .(onsetTime = min(time)), by = .(pp, trial)], by = c("pp", "trial"))
   # Timelock the data to the onset of the phase
-  dat[, time := time - onsetTime, by = trial] 
+  data[, time := time - onsetTime, by = trial] 
   # Remove the temporary variables onsetTime and Baseline
-  dat[, onsetTime := NULL]
+  data[, onsetTime := NULL]
 }
 #' baseline
 #'
@@ -147,13 +172,12 @@ timelock <- function(dat, phase_name){
 #' @param by by
 #' @return A data.table with samples
 #' @export
-baseline <- function(dat, baselineRange = c(-200, 0), by = NULL){
-  byArgument <- unique(c(by, "pp", "trial"))
-  dat <- merge(dat, dat[time %between% baselineRange, .(baseline = mean(pupil, na.rm = T)),
-                        by = byArgument], by = byArgument)
-  dat[, pupil := pupil - baseline]
-  dat[, baseline := NULL]
-  return(dat)
+baseline <- function(data, baselineRange = c(-200, 0), by = NULL){
+  byArgument <- unique(c(by, "trial"))
+  data <- merge(data, data[time %between% baselineRange, .(baseline = mean(pupil, na.rm = T)),
+                           by = byArgument], by = byArgument)
+  data[, pupil := ifelse(is.nan(baseline), NA, pupil - baseline)]
+  return(data)
 }
 #' Downsample
 #'
@@ -162,19 +186,12 @@ baseline <- function(dat, baselineRange = c(-200, 0), by = NULL){
 #' @param Hz downsample to
 #' @return A data.table with samples
 #' @export
-downsample <- function (dat, by, Hz = 100){
-  sampleTime <- dat[, time[2] - time[1]]
-  binSize <- 1000/Hz
-  if (binSize%%sampleTime != 0) {
-    warning("Sample frequency of data is not a multiple of the target frequency specified in the by argument")
-  }
-  dat$DS <- dat$time%/%binSize
-  allF <- c(by, "DS")
-  dat <- dat[, list(pupil = median(pupil), x = median(x), y = median(y),
-                    phase = head(phase, 1)), by = allF]
-  dat$time <- dat$DS * binSize
-  dat$DS <- NULL
-  return(dat)
+downsample <- function(data, samptime, By = "trial"){
+  data[, DS := time %/% samptime, by = By]
+  By <- c(By, "DS")
+  data[, ":="(pupil = median(pupil, na.rm = T), x = median(x, na.rm = T), y = median(y, na.rm = T)), by = By]
+  data$time <- data$DS * samptime
+  data$DS <- NULL
+  data <- unique(data)
+  return(data)
 }
-
-

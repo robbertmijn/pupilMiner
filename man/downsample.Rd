@@ -4,7 +4,7 @@
 \alias{downsample}
 \title{Downsample}
 \usage{
-downsample(dat, by, Hz = 100)
+downsample(data, samptime, By = "trial")
 }
 \arguments{
 \item{dat}{pupil table object}

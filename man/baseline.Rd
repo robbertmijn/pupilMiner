@@ -4,14 +4,14 @@
 \alias{baseline}
 \title{baseline}
 \usage{
-baseline(dat, baselineRange = c(-200, 0), by = NULL)
+baseline(data, baselineRange = c(-200, 0), by = NULL)
 }
 \arguments{
-\item{dat}{pupil table object}
-
 \item{baselineRange}{timepoints to baseline on}
 
 \item{by}{by}
+
+\item{dat}{pupil table object}
 }
 \value{
 A data.table with samples
