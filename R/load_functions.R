@@ -10,20 +10,20 @@
 #' @param baseline_period pupil trace baseline
 #' @return A data.table with samples
 #' @export
-parse_asc_file <- function(infile, 
-                           keep_vars = NULL, 
-                           TP_report_dir = NULL, 
-                           TP_report_period = c(-Inf, Inf), 
-                           timelock_to = NULL, 
-                           samptime = NULL, 
+parse_asc_file <- function(infile,
+                           keep_vars = NULL,
+                           TP_report_dir = NULL,
+                           TP_report_period = c(-Inf, Inf),
+                           timelock_to = NULL,
+                           samptime = NULL,
                            baseline_period = c(NULL, NULL)){
-  
+
   cat("=======\ntraceprocess", format(Sys.time(), "%Y%m%d%H%M%S"), "\n")
   # print message to console
   cat("Loading ", infile, "\n")
   # use eyelinker package to parse asc file
   dat <- read.asc(infile)
-  
+
   # extract tables from eyelinker object
   tempraw <- data.table(dat$raw)
   tempphases <- data.table(dat$msg, type = "phase")[startsWith(text, "start_phase")]
@@ -31,31 +31,27 @@ parse_asc_file <- function(infile,
   tempblinks <- data.table(dat$blinks)
   tempfix <- data.table(dat$fix)
   tempsacc <- data.table(dat$sacc)
-  
+
   # apply trace processor
   tempdat <- traceprocessor(tempraw, tempblinks)
-  
+
   # add variables and time lock to start of trial
   tempdat <- add_variables(tempdat, tempphases, tempvars, keep_vars)
-  
+
   # generate pdf with trace processing report
   if(!is.null(TP_report_dir)){
     cat("creating pdf report\n")
     trace_reports(tempdat, folder = TP_report_dir, period = TP_report_period)
   }
-  
-  tempdat <- tempdat[, -c("pupil_raw", "x_raw", "y_raw", 
-                          "pupil_tp_el", "x_tp_el", "y_tp_el", 
-                          "pupil_tp_vel", "x_tp_vel", "y_tp_vel", "t_exp")]
-  
+
   cat("Timelocking to", timelock_to, "\n")
   tempdat <- timelock(tempdat, timelock_to)
-  
+
   if(!is.null(baseline_period)){
     cat("Subtracting baseline", "\n")
     tempdat <- baseline(tempdat, baseline_period)
   }
-  
+
   if(!is.null(samptime)){
     cat("Downsampling to", 1000/samptime, "Hz ... from", nrow(tempdat))
     tempdat <- downsample(tempdat, samptime)
@@ -89,8 +85,8 @@ add_variables <- function(dat, phases, vars, keep_vars = NULL){
   dat[, ":="(cr.info = NULL, text = NULL, type = NULL, input = NULL)]
   # extract variable names passed with keep_vars from messages
   if(!is.null(keep_vars)){
-    vars <- vars[, .(block, 
-                     var = strsplit(text, " ")[[1]][2], 
+    vars <- vars[, .(block,
+                     var = strsplit(text, " ")[[1]][2],
                      value = strsplit(text, " ")[[1]][3]), by = 1:nrow(vars)]
     vars <- data.table(dcast(vars, block ~ var, value.var = "value"))
     vars <- vars[, ..keep_vars]
@@ -98,39 +94,6 @@ add_variables <- function(dat, phases, vars, keep_vars = NULL){
   }
   setnames(dat, c("block", "xp", "yp", "ps", "subject_nr"), c("trial", "x", "y", "pupil", "pp"))
   return(dat)
-}
-#' Export a trace processing report
-#'
-#' @param dat table with data, including raw pupil/x/y data
-#' @param folder where to save reports
-#' @param tag add this tag to filenames
-#' @param trials_per_page trials per page
-#' @param period start and end time to plot
-#' @export
-trace_reports <- function(dat, 
-                          folder = "trace_reports", 
-                          tag = "traces", 
-                          trials_per_page = 20, 
-                          period = c(-Inf, Inf)){
-  theme_set(theme_classic())
-  dir.create(file.path(getwd(), folder), showWarnings = FALSE)
-  pdf(file = paste0(folder, "/", tag, "_pp", unique(dat$pp), ".pdf"))
-  dat[, page := trial %/% trials_per_page]
-  pb <- progress_bar$new(total = length(unique(dat$page)))
-  for(p in unique(dat$page)){
-    pb$tick()
-    print(
-      ggplot(dat[page == p & time %between% period], aes(x = time, group = trial)) +
-        geom_line(aes(y = pupil), size = .5, color= "red") +
-        geom_line(aes(y = pupil_raw), size = .2, ) +
-        # geom_line(aes(y = pupil_tp_el), size = .3, color= "green") +
-        # geom_line(aes(y = pupil_tp_vel), size = .1, color= "red") +
-        facet_wrap(~trial) +
-        labs(title = paste0("pp ", unique(dat$pp), " page ", p, " of ", max(dat$page)))
-    )
-  }
-  dev.off()
-  dat[, page := NULL]
 }
 #' load the demo data
 #'

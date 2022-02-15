@@ -1,6 +1,6 @@
 Package: pupilMiner
 Title: Parse, Process and Analyze Pupil Data in R
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: 
     person(given = "Robbert",
            family = "van der Mijn",
