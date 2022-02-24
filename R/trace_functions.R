@@ -16,13 +16,16 @@ traceprocessor <- function(data, blinkdat = NULL){
   }
 
   # Remove samples collected during blink period marked by eyelink
-  data <- TP_eyelink(data, blinkdat)
+  # data <- TP_eyelink(data, blinkdat)
 
   # Remove samples collected during blink period marked by velocity threshold
   data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
 
+  # TODO: Export blink time points
+
+  sampdur <- data$time[2] - data$time[1]
   # linearly interpolate missing data up to 500 ms
-  data[, ps := na.approx(ps, maxgap = round(500/4), na.rm = F), by = block]
+  data[, ps := na.approx(ps, maxgap = round(500/sampdur), na.rm = F), by = block]
 
   return(data)
 }
@@ -101,15 +104,16 @@ TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winleng
       if(istart - margin >= 0){
         istart <- istart - margin
       }
-      if(iend + margin < length(trace)){
+      if(iend + margin < length(strace)){
         iend <- iend + margin
       }
       # We don't accept blinks that are too long, because blinks are not
       # generally very long (although they can be).
-      if(iend - istart > maxdur){
-        ifrom = istart + maxdur
-        next
-      }
+      # RM: we don't interpolate, but we do want to detect these long blinks!
+      # if(iend - istart > maxdur){
+      #   ifrom = istart + maxdur
+      #   next
+      # }
       lblink <- rbind(lblink, c(istart, iend))
     }
 
@@ -153,7 +157,7 @@ smooth_trace <- function(trace, win = 21){
 #' @return A data.table with samples
 #' @export
 timelock <- function(data, phase_name){
-  data <- merge(data, data[phase == phase_name, .(onsetTime = min(time)), by = .(pp, trial)], by = c("pp", "trial"))
+  data <- merge(data, data[phase == phase_name, .(onsetTime = min(time)), by = trial], by = "trial")
   # Timelock the data to the onset of the phase
   data[, time := time - onsetTime, by = trial]
   # Remove the temporary variables onsetTime and Baseline
@@ -176,14 +180,21 @@ baseline <- function(data, baselineRange = c(-200, 0), by = NULL){
 #' Downsample
 #'
 #' @param dat pupil table object
+#' @param samptime New sample duration
 #' @param by by
-#' @param Hz downsample to
+#' @param ds_cols Columns with data that require downsampling
 #' @return A data.table with samples
 #' @export
-downsample <- function(data, samptime, By = "trial"){
+downsample <- function(data, samptime, By = "trial", ds_cols = NULL){
   data[, DS := time %/% samptime, by = By]
   By <- c(By, "DS")
-  data[, ":="(pupil = median(pupil, na.rm = T), x = median(x, na.rm = T), y = median(y, na.rm = T)), by = By]
+  for(col in ds_cols){
+    if(col %in% names(data)){
+      data[, (col) := median(get(col), na.rm = T), by = By]
+    } else {
+      warning(col, " not found in data")
+    }
+  }
   data$time <- data$DS * samptime
   data$DS <- NULL
   data <- unique(data)

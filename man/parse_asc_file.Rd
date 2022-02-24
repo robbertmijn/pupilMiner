@@ -17,7 +17,7 @@ parse_asc_file(
 \arguments{
 \item{infile}{Path to the input file}
 
-\item{keep_vars}{column names to keep from vars that are passed as messages to the eyelink}
+\item{keep_vars}{column names to keep from vars that are passed as messages to the eyelink, allows you to specify which variables from the OS-experiment will be retained.}
 
 \item{TP_report_dir}{if passed, pdfs with trace reports are saved in this folder}
 

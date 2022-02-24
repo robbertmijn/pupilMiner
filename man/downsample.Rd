@@ -4,14 +4,16 @@
 \alias{downsample}
 \title{Downsample}
 \usage{
-downsample(data, samptime, By = "trial")
+downsample(data, samptime, By = "trial", ds_cols = NULL)
 }
 \arguments{
+\item{samptime}{New sample duration}
+
+\item{ds_cols}{Columns with data that require downsampling}
+
 \item{dat}{pupil table object}
 
 \item{by}{by}
-
-\item{Hz}{downsample to}
 }
 \value{
 A data.table with samples
