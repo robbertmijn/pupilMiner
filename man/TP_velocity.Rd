@@ -17,7 +17,10 @@ TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
 
 \item{smooth_winlength}{The width of the smoothing window. This should be an odd integer.}
 
-\item{std_thr}{std_thr}
+\item{std_thr}{std_thr, TODO}
+}
+\value{
+A data.table with blink periods marked as NA
 }
 \description{
 Blink detection using method described by Mathot

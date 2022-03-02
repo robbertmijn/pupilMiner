@@ -2,7 +2,7 @@
 #'
 #' @param data eyetracker table object with raw samples
 #' @param blinkdat blink information
-#' @return tracker table with processed traces
+#' @return Table with processed traces and list of blinks per trial
 #' @export
 traceprocessor <- function(data, blinkdat = NULL){
 
@@ -20,8 +20,6 @@ traceprocessor <- function(data, blinkdat = NULL){
 
   # Remove samples collected during blink period marked by velocity threshold
   data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
-
-  # TODO: Export blink time points
 
   sampdur <- data$time[2] - data$time[1]
   # linearly interpolate missing data up to 500 ms
@@ -53,18 +51,23 @@ TP_eyelink <- function(data, blinkdat, margin = 100){
 #' @param maxdur The maximum duration (in samples) for a blink. Longer blinks are not reconstructed.
 #' @param margin The margin to take around missing data
 #' @param smooth_winlength The width of the smoothing window. This should be an odd integer.
-#' @param std_thr std_thr
+#' @param std_thr std_thr, TODO
+#' @return A data.table with blink periods marked as NA
+#' @export
 TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21){
 
   sampdur <- data$time[2] - data$time[1]
   margin <- round(margin/sampdur)
   maxdur <- round(maxdur/sampdur)
   data[, i := 1:.N, by = block]
+  data$blink_id <- as.integer(NA)
 
   cat("Blinks from velocity, pars: vt =", vt,
       ", maxdur (samples) =", maxdur,
-      ", margin (samples) =", margin,
+      ", sample rate =", 1000/sampdur,
+      " Hz, margin (samples) =", margin,
       ", smooth (samples) =", smooth_winlength, "\n")
+
   for(bl in unique(data$block)){
     strace <- data[block == bl, smooth_trace(ps, win = smooth_winlength)]
     vtrace <- strace - shift(strace)
@@ -117,14 +120,16 @@ TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winleng
       lblink <- rbind(lblink, c(istart, iend))
     }
 
+    # Replace raw pupil/x/y traces with NA during blink periods
     if(!is.null(lblink)){
       cat("[", bl, nrow(lblink), "] ")
       for(r in 1:nrow(lblink)){
         istart <- lblink[r, 1]
         iend <- lblink[r, 2]
-        data[block == bl & i %between% c(istart, iend), ps := NA]
-        data[block == bl & i %between% c(istart, iend), xp := NA]
-        data[block == bl & i %between% c(istart, iend), yp := NA]
+        data[block == bl & i %between% c(istart, iend), ":="(ps = NA,
+                                                             xp = NA,
+                                                             yp = NA,
+                                                             blink_id = r)]
       }
     }
   }
@@ -160,6 +165,10 @@ timelock <- function(data, phase_name){
   data <- merge(data, data[phase == phase_name, .(onsetTime = min(time)), by = trial], by = "trial")
   # Timelock the data to the onset of the phase
   data[, time := time - onsetTime, by = trial]
+
+  print("tl blinks")
+  # data[, blink_onsets := list(lapply(blink_onsets, function(bo) bo - onsetTime)), by = trial]
+  # data[, blink_offsets := list(lapply(blink_offsets, function(bo) bo - onsetTime)), by = trial]
   # Remove the temporary variables onsetTime and Baseline
   data[, onsetTime := NULL]
 }
