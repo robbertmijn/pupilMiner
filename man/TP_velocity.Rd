@@ -4,7 +4,7 @@
 \alias{TP_velocity}
 \title{Blink detection using method described by Mathot}
 \usage{
-TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
+TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84)
 }
 \arguments{
 \item{data}{pupil table object}

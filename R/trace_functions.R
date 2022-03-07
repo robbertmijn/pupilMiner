@@ -19,7 +19,7 @@ traceprocessor <- function(data, blinkdat = NULL){
   # data <- TP_eyelink(data, blinkdat)
 
   # Remove samples collected during blink period marked by velocity threshold
-  data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21)
+  data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84)
 
   sampdur <- data$time[2] - data$time[1]
   # linearly interpolate missing data up to 500 ms
@@ -54,11 +54,12 @@ TP_eyelink <- function(data, blinkdat, margin = 100){
 #' @param std_thr std_thr, TODO
 #' @return A data.table with blink periods marked as NA
 #' @export
-TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 21){
+TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84){
 
   sampdur <- data$time[2] - data$time[1]
   margin <- round(margin/sampdur)
   maxdur <- round(maxdur/sampdur)
+  smooth_winlength <- round(smooth_winlength/sampdur)
   data[, i := 1:.N, by = block]
   data$blink_id <- as.integer(NA)
 
@@ -165,10 +166,6 @@ timelock <- function(data, phase_name){
   data <- merge(data, data[phase == phase_name, .(onsetTime = min(time)), by = trial], by = "trial")
   # Timelock the data to the onset of the phase
   data[, time := time - onsetTime, by = trial]
-
-  print("tl blinks")
-  # data[, blink_onsets := list(lapply(blink_onsets, function(bo) bo - onsetTime)), by = trial]
-  # data[, blink_offsets := list(lapply(blink_offsets, function(bo) bo - onsetTime)), by = trial]
   # Remove the temporary variables onsetTime and Baseline
   data[, onsetTime := NULL]
 }
