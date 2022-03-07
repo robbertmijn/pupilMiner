@@ -12,7 +12,7 @@ traceprocessor(data, blinkdat = NULL)
 \item{blinkdat}{blink information}
 }
 \value{
-tracker table with processed traces
+Table with processed traces and list of blinks per trial
 }
 \description{
 trace processor

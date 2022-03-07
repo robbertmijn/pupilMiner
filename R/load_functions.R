@@ -33,33 +33,33 @@ parse_asc_file <- function(infile,
   tempsacc <- data.table(dat$sacc)
 
   # apply trace processor
-  tempdat <- traceprocessor(tempraw, tempblinks)
+  TP_result <- traceprocessor(tempraw, tempblinks)
 
   # add variables and time lock to start of trial
-  tempdat <- add_variables(tempdat, tempphases, tempvars, keep_vars)
+  TP_result <- add_variables(TP_result, tempphases, tempvars, keep_vars)
 
   # generate pdf with trace processing report
   if(!is.null(TP_report_dir)){
     cat("creating pdf report\n")
-    trace_reports(tempdat, folder = TP_report_dir, period = TP_report_period)
+    trace_reports(TP_result, folder = TP_report_dir, period = TP_report_period)
   }
   if(!is.null(timelock_to)){
     cat("Timelocking to", timelock_to, "\n")
-    tempdat <- timelock(tempdat, timelock_to)
+    TP_result <- timelock(TP_result, timelock_to)
   }
 
   if(!is.null(baseline_period)){
     cat("Subtracting baseline", "\n")
-    tempdat <- baseline(tempdat, baseline_period)
+    TP_result <- baseline(TP_result, baseline_period)
   }
 
   if(!is.null(samptime)){
-    cat("Downsampling to", 1000/samptime, "Hz ... from", nrow(tempdat))
-    tempdat <- downsample(tempdat, samptime, ds_cols = c("x", "y", "pupil", "pupil_raw", "x_raw", "y_raw", "t_exp"))
-    cat(" to", nrow(tempdat), "rows\n")
+    cat("Downsampling to", 1000/samptime, "Hz ... from", nrow(TP_result))
+    TP_result <- downsample(TP_result, samptime, ds_cols = c("x", "y", "pupil", "pupil_raw", "x_raw", "y_raw", "t_exp"))
+    cat(" to", nrow(TP_result), "rows\n")
   }
   cat("\n\n")
-  return(tempdat)
+  return(TP_result)
 }
 #' Extract variables and add
 #'
@@ -95,6 +95,7 @@ add_variables <- function(dat, phases, vars, keep_vars = NULL){
     dat <- merge(dat, vars, by = "block")
   }
   setnames(dat, c("block", "xp", "yp", "ps"), c("trial", "x", "y", "pupil"))
+
   return(dat)
 }
 #' load the demo data

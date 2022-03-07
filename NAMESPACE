@@ -2,6 +2,7 @@
 
 export(DemoDat)
 export(TP_eyelink)
+export(TP_velocity)
 export(add_variables)
 export(baseline)
 export(downsample)
