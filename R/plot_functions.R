@@ -1,4 +1,4 @@
-#' Export a trace processing report
+#' Export a trace processing report for a single pp
 #'
 #' @param dat table with data, including raw pupil/x/y data
 #' @param folder where to save reports
@@ -13,19 +13,26 @@ trace_reports <- function(dat,
                           period = c(-Inf, Inf)){
   theme_set(theme_classic())
   dir.create(file.path(getwd(), folder), showWarnings = FALSE)
-  pdf(file = paste0(folder, "/", tag, "_pp", unique(dat$pp), ".pdf"))
+  pdf(file = paste0(folder, "/", tag, "_subject_nr", unique(dat$subject_nr), ".pdf"))
   dat[, page := trial %/% trials_per_page]
   pb <- progress_bar$new(total = length(unique(dat$page)))
   for(p in unique(dat$page)){
     pb$tick()
     print(
-      ggplot(dat[page == p & time %between% period], aes(x = time, group = trial)) +
-        geom_line(aes(y = pupil), size = .5, color= "red") +
-        geom_line(aes(y = pupil_raw), size = .2, ) +
+      ggplot(dat[page == p & time %between% period], aes(x = time)) +
+        geom_line(aes(y = pupil_raw), color = "red") +
+        geom_path(data = dat[page == p & time %between% period & !is.na(blink_id)], aes(y = pupil_raw, grp = as.factor(blink_id)), color = "blue") +
+        facet_wrap(~trial, scales = "free") +
+        labs(title = paste0("RAW: subject_nr ", unique(dat$subject_nr), ", page ", p, " of ", max(dat$page)))
+    )
+    print(
+      ggplot(dat[page == p & time %between% period], aes(x = time)) +
+        geom_line(aes(y = pupil)) +
         facet_wrap(~trial) +
-        labs(title = paste0("pp ", unique(dat$pp), " page ", p, " of ", max(dat$page)))
+        labs(title = paste0("PROCESSED: subject_nr ", unique(dat$subject_nr), ", page ", p, " of ", max(dat$page)))
     )
   }
   dev.off()
   dat[, page := NULL]
 }
+
