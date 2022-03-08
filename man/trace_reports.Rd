@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_functions.R
 \name{trace_reports}
 \alias{trace_reports}
-\title{Export a trace processing report}
+\title{Export a trace processing report for a single pp}
 \usage{
 trace_reports(
   dat,
@@ -24,5 +24,5 @@ trace_reports(
 \item{period}{start and end time to plot}
 }
 \description{
-Export a trace processing report
+Export a trace processing report for a single pp
 }

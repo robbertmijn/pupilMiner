@@ -4,22 +4,15 @@
 #' @param blinkdat blink information
 #' @return Table with processed traces and list of blinks per trial
 #' @export
-traceprocessor <- function(data, blinkdat = NULL){
+traceprocessor <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84){
 
   # copy pupil, x and y traces
   data$pupil_raw <- data$ps
   data$x_raw <- data$xp
   data$y_raw <- data$yp
 
-  if(is.null(blinkdat)){
-    warning("no blink data supplied")
-  }
-
-  # Remove samples collected during blink period marked by eyelink
-  # data <- TP_eyelink(data, blinkdat)
-
   # Remove samples collected during blink period marked by velocity threshold
-  data <- TP_velocity(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84)
+  data <- TP_velocity(data, vt = vt, maxdur = maxdur, margin = margin, smooth_winlength = smooth_winlength)
 
   sampdur <- data$time[2] - data$time[1]
   # linearly interpolate missing data up to 500 ms

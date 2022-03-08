@@ -3,8 +3,6 @@
 #' @param infile Path to the input file
 #' @param keep_vars column names to keep from vars that are passed as messages to the eyelink, allows you to specify which variables from the OS-experiment will be retained.
 #' @param TP Specify which type of trace processor
-#' @param TP_report_dir if passed, pdfs with trace reports are saved in this folder
-#' @param TP_report_period select begin and end point to report
 #' @param timelock_to if passed, time variable is set to 0 at onset of a phase
 #' @param samptime if passed, data is downsampled to this sample time (ms)
 #' @param baseline_period pupil trace baseline
@@ -12,11 +10,10 @@
 #' @export
 parse_asc_file <- function(infile,
                            keep_vars = NULL,
-                           TP_report_dir = NULL,
-                           TP_report_period = c(-Inf, Inf),
                            timelock_to = NULL,
                            samptime = NULL,
-                           baseline_period = c(NULL, NULL)){
+                           baseline_period = c(NULL, NULL),
+                           vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84){
 
   cat("=======\ntraceprocess", format(Sys.time(), "%Y%m%d%H%M%S"), "\n")
   # print message to console
@@ -33,16 +30,11 @@ parse_asc_file <- function(infile,
   tempsacc <- data.table(dat$sacc)
 
   # apply trace processor
-  TP_result <- traceprocessor(tempraw, tempblinks)
+  TP_result <- traceprocessor(tempraw, vt = vt, maxdur = maxdur, margin = margin, smooth_winlength = smooth_winlength)
 
   # add variables and time lock to start of trial
   TP_result <- add_variables(TP_result, tempphases, tempvars, keep_vars)
 
-  # generate pdf with trace processing report
-  if(!is.null(TP_report_dir)){
-    cat("creating pdf report\n")
-    trace_reports(TP_result, folder = TP_report_dir, period = TP_report_period)
-  }
   if(!is.null(timelock_to)){
     cat("Timelocking to", timelock_to, "\n")
     TP_result <- timelock(TP_result, timelock_to)
