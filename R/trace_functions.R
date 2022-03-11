@@ -54,7 +54,7 @@ TP_velocity <- function(data, vt = 5, maxdur = 500, margin = 100, smooth_winleng
   maxdur <- round(maxdur/sampdur)
   smooth_winlength <- round(smooth_winlength/sampdur)
   data[, i := 1:.N, by = block]
-  data$blink_id <- as.integer(NA)
+  data$blink_id <- as.double(NA)
 
   cat("Blinks from velocity, pars: vt =", vt,
       ", maxdur (samples) =", maxdur,

@@ -47,7 +47,7 @@ parse_asc_file <- function(infile,
 
   if(!is.null(samptime)){
     cat("Downsampling to", 1000/samptime, "Hz ... from", nrow(TP_result))
-    TP_result <- downsample(TP_result, samptime, ds_cols = c("x", "y", "pupil", "pupil_raw", "x_raw", "y_raw", "t_exp"))
+    TP_result <- downsample(TP_result, samptime, ds_cols = c("x", "y", "pupil", "pupil_raw", "x_raw", "y_raw", "t_exp", "blink_id"))
     cat(" to", nrow(TP_result), "rows\n")
   }
   cat("\n\n")
