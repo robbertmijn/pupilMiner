@@ -10,7 +10,8 @@ trace_reports <- function(dat,
                           folder = "trace_reports",
                           tag = "traces",
                           trials_per_page = 20,
-                          period = c(-Inf, Inf)){
+                          period = c(-Inf, Inf),
+                          incl_sacc = T){
   theme_set(theme_classic())
   dir.create(file.path(getwd(), folder), showWarnings = FALSE)
   pdf(file = paste0(folder, "/", tag, "_subject_nr", unique(dat$subject_nr), ".pdf"))
@@ -31,6 +32,14 @@ trace_reports <- function(dat,
         facet_wrap(~trial) +
         labs(title = paste0("PROCESSED: subject_nr ", unique(dat$subject_nr), ", page ", p, " of ", max(dat$page)))
     )
+    print(
+      ggplot(dat[page == p & time %between% period]) +
+        geom_path(aes(x = x, y = y, color = time), alpha = .3) +
+        geom_path(data = dat[page == p & time %between% period & !is.na(sacc_id)], aes(y = y, x = x, grp = as.factor(sacc_id)), color = "red") +
+        facet_wrap(~trial, scales = "free") +
+        labs(title = paste0("MICROSACCADES: subject_nr ", unique(dat$subject_nr), ", page ", p, " of ", max(dat$page)))
+    )
+
   }
   dev.off()
   dat[, page := NULL]

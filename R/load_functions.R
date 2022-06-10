@@ -13,7 +13,12 @@ parse_asc_file <- function(infile,
                            timelock_to = NULL,
                            samptime = NULL,
                            baseline_period = c(NULL, NULL),
-                           vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84){
+                           stime = NULL, etime = NULL,
+                           blinkparams = NULL,
+                           saccparams = NULL){
+
+  stime <- ifelse(is.null(stime), min(tempraw$time), stime)
+  etime <- ifelse(is.null(etime), max(tempraw$time), etime)
 
   cat("=======\ntraceprocess", format(Sys.time(), "%Y%m%d%H%M%S"), "\n")
   # print message to console
@@ -23,14 +28,20 @@ parse_asc_file <- function(infile,
 
   # extract tables from eyelinker object
   tempraw <- data.table(dat$raw)
+  tempraw[, t_exp := time]
+  tempraw[, time := time - min(time), by = block]
+  tempraw <- tempraw[time %between% c(stime, etime)]
+
   tempphases <- data.table(dat$msg, type = "phase")[startsWith(text, "start_phase")]
+  setnames(tempphases, "time", "t_exp")
   tempvars <- data.table(dat$msg)[startsWith(text, "var")]
-  tempblinks <- data.table(dat$blinks)
-  tempfix <- data.table(dat$fix)
-  tempsacc <- data.table(dat$sacc)
+  setnames(tempvars, "time", "t_exp")
+  # tempblinks <- data.table(dat$blinks)
+  # tempfix <- data.table(dat$fix)
+  # tempsacc <- data.table(dat$sacc)
 
   # apply trace processor
-  TP_result <- traceprocessor(tempraw, vt = vt, maxdur = maxdur, margin = margin, smooth_winlength = smooth_winlength)
+  TP_result <- traceprocessor(tempraw, blinkparams, saccparams)
 
   # add variables and time lock to start of trial
   TP_result <- add_variables(TP_result, tempphases, tempvars, keep_vars)
@@ -63,18 +74,14 @@ parse_asc_file <- function(infile,
 add_variables <- function(dat, phases, vars, keep_vars = NULL){
   dat <- rbind(dat, phases, fill = T)
   # sort the table based on time points (messages will be sorted with raw data)
-  setkey(dat, time)
+  setkey(dat, t_exp)
   # locf (last observation carries forward) will add info about messages to raw data
   dat[, phase := na.locf(text, na.rm = F), by = block]
   # Only keep the actual raw data, which now has info about the phase and trial
   dat <- dat[is.na(type)]
   # remove the "start_phase " bit from the phase name
   dat[, phase := gsub("start_phase ", "", phase)]
-  # calculate time since trial start and time since phase start
-  dat[, t_exp := time]
-  dat[, time := time - min(time), by = block]
-  # remove unused variables and extract pp number from filename
-  # dat[, ":="(pp = gsub("\\D", "", tail(strsplit(infile, "/")[[1]], 1)), cr.info = NULL, text = NULL, type = NULL, input = NULL)]
+  # remove unused variables
   dat[, ":="(cr.info = NULL, text = NULL, type = NULL, input = NULL)]
   # extract variable names passed with keep_vars from messages
   if(!is.null(keep_vars)){
