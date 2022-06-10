@@ -10,10 +10,10 @@ parse_asc_file(
   timelock_to = NULL,
   samptime = NULL,
   baseline_period = c(NULL, NULL),
-  vt = 5,
-  maxdur = 500,
-  margin = 100,
-  smooth_winlength = 84
+  stime = NULL,
+  etime = NULL,
+  blinkparams = NULL,
+  saccparams = NULL
 )
 }
 \arguments{

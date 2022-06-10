@@ -4,7 +4,7 @@
 \alias{traceprocessor}
 \title{trace processor}
 \usage{
-traceprocessor(data, vt = 5, maxdur = 500, margin = 100, smooth_winlength = 84)
+traceprocessor(data, blinkparams = NULL, saccparams = NULL)
 }
 \arguments{
 \item{data}{eyetracker table object with raw samples}

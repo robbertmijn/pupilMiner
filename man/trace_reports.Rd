@@ -9,7 +9,8 @@ trace_reports(
   folder = "trace_reports",
   tag = "traces",
   trials_per_page = 20,
-  period = c(-Inf, Inf)
+  period = c(-Inf, Inf),
+  incl_sacc = T
 )
 }
 \arguments{
